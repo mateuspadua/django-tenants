@@ -30,24 +30,31 @@ Add `django_tenants.routers.TenantSyncRouter` to your `DATABASE_ROUTERS` setting
         'django_tenants.routers.TenantSyncRouter',
     )
     
-Add the middleware ``django_tenants.middleware.TenantMiddleware`` to the top of ``MIDDLEWARE``, so that each request can be set to use the correct schema.
+Add the middleware ``django_tenants.middleware.main.TenantMainMiddleware`` to the top of ``MIDDLEWARE``, so that each request can be set to use the correct schema.
 
 .. code-block:: python
     
     MIDDLEWARE = (
-        'django_tenants.middleware.TenantMiddleware',
+        'django_tenants.middleware.main.TenantMainMiddleware',
         #...
     )
     
-Make sure you have ``django.core.context_processors.request`` listed under ``TEMPLATE_CONTEXT_PROCESSORS`` else the tenant will not be available on ``request``.
+Make sure you have ``django.template.context_processors.request`` listed under the ``context_processors`` option of ``TEMPLATES`` otherwise the tenant will not be available on ``request``.
 
 .. code-block:: python
 
-    TEMPLATE_CONTEXT_PROCESSORS = (
-        'django.core.context_processors.request',
-        #...
-    )
-    
+    TEMPLATES = [
+        {
+            #...
+            'OPTIONS': {
+                'context_processors': [
+                    'django.template.context_processors.request',
+                    #...
+                ],
+            },
+        },
+    ]
+
 The Tenant & Domain Model
 =========================
 Now we have to create your tenant model. Your tenant model can contain whichever fields you want, however, you **must** inherit from ``TenantMixin``. This Mixin only has one field ``schema_name`` which is required. You also have to have a table for your domain names for this you use the you **must** inherit from ``DomainMixin`` .

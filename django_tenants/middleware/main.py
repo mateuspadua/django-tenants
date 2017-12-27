@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
-from django.shortcuts import get_object_or_404
-from .utils import remove_www, get_public_schema_name, get_tenant_domain_model
+from django.http import Http404
+from django_tenants.utils import remove_www, get_public_schema_name, get_tenant_domain_model
 import django
 
 if django.VERSION >= (1, 10, 0):
@@ -11,17 +11,29 @@ else:
     MIDDLEWARE_MIXIN = object
 
 
-class TenantMiddleware(MIDDLEWARE_MIXIN):
+class TenantMainMiddleware(MIDDLEWARE_MIXIN):
+    TENANT_NOT_FOUND_EXCEPTION = Http404
+    DOMAIN_NOT_FOUND_EXCEPTION = Http404
     """
     This middleware should be placed at the very top of the middleware stack.
     Selects the proper database schema using the request host. Can fail in
     various ways which is better than corrupting or revealing data.
     """
-    def hostname_from_request(self, request):
+
+    @staticmethod
+    def hostname_from_request(request):
         """ Extracts hostname from request. Used for custom requests filtering.
             By default removes the request's port and common prefixes.
         """
         return remove_www(request.get_host().split(':')[0])
+
+    def get_domain(self, domain_model, hostname):
+        domain = domain_model.objects.select_related('tenant').get(domain=hostname)
+        return domain
+
+    def get_tenant(self, domain_model, hostname):
+        domain = self.get_domain(domain_model, hostname)
+        return domain.tenant
 
     def process_request(self, request):
         # Connection needs first to be at the public schema, as this is where
@@ -29,12 +41,29 @@ class TenantMiddleware(MIDDLEWARE_MIXIN):
         connection.set_schema_to_public()
         hostname = self.hostname_from_request(request)
 
-        domain = get_object_or_404(get_tenant_domain_model().objects.select_related('tenant'),
-                                   domain=hostname)
+        domain_model = get_tenant_domain_model()
+        try:
+            domain = self.get_domain(domain_model, hostname)
+            tenant = domain.tenant
+            if not tenant:
+                raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for hostname "%s"' % hostname)
+        except domain_model.DoesNotExist:
+            raise self.DOMAIN_NOT_FOUND_EXCEPTION('No domain for hostname "%s"' % hostname)
 
-        domain.tenant.domain_url = hostname
-        domain.tenant.current_domain = domain
-        request.tenant = domain.tenant
+        # domain.tenant.domain_url = hostname
+        # domain.tenant.current_domain = domain
+        # request.tenant = domain.tenant
+        # request.tenant_current_domain = domain
+
+        # set 'current_domain' in 'tenant' to use across your application, e.g:
+        # ...
+        # from django.db import connection
+        # if connection.tenant.current_domain.id == any_id:
+        #    do ...
+        # ...
+        tenant.current_domain = domain
+        tenant.domain_url = hostname
+        request.tenant = tenant
         request.tenant_current_domain = domain
 
         connection.set_tenant(request.tenant)

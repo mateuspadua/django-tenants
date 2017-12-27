@@ -1,9 +1,9 @@
 from django.test import RequestFactory, Client
-from django_tenants.middleware import TenantMiddleware
+from django_tenants.middleware.main import TenantMainMiddleware
 
 
 class TenantRequestFactory(RequestFactory):
-    tm = TenantMiddleware()
+    tm = TenantMainMiddleware()
 
     def __init__(self, tenant, **defaults):
         super(TenantRequestFactory, self).__init__(**defaults)
@@ -42,7 +42,7 @@ class TenantRequestFactory(RequestFactory):
 
 
 class TenantClient(Client):
-    tm = TenantMiddleware()
+    tm = TenantMainMiddleware()
 
     def __init__(self, tenant, enforce_csrf_checks=False, **defaults):
         super(TenantClient, self).__init__(enforce_csrf_checks, **defaults)

@@ -21,7 +21,8 @@ class BaseTestCase(TransactionTestCase):
                                 'django.contrib.contenttypes',
                                 'django.contrib.auth', )
         settings.INSTALLED_APPS = settings.SHARED_APPS + settings.TENANT_APPS
-
+        if '.test.com' not in settings.ALLOWED_HOSTS:
+            settings.ALLOWED_HOSTS += ['.test.com']
         cls.available_apps = settings.INSTALLED_APPS
 
         super(BaseTestCase, cls).setUpClass()
@@ -31,12 +32,19 @@ class BaseTestCase(TransactionTestCase):
         super(BaseTestCase, self).setUp()
 
     @classmethod
+    def tearDownClass(cls):
+        super(BaseTestCase, cls).tearDownClass()
+        if '.test.com' in settings.ALLOWED_HOSTS:
+            settings.ALLOWED_HOSTS.remove('.test.com')
+
+    @classmethod
     def get_tables_list_in_schema(cls, schema_name):
         cursor = connection.cursor()
         sql = """SELECT table_name FROM information_schema.tables
               WHERE table_schema = %s"""
         cursor.execute(sql, (schema_name, ))
         return [row[0] for row in cursor.fetchall()]
+
 
     @classmethod
     def sync_shared(cls):
